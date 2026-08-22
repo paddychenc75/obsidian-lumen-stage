@@ -1,7 +1,7 @@
 {
   "id": "lumen-stage",
   "name": "Lumen Stage",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "1.13.0",
   "description": "Pan, Ctrl/Cmd+wheel zoom, fit, reset, and fullscreen for Mermaid diagrams. Works with any theme. Ordinary wheel still scrolls the page.",
   "author": "paddychenc75",

@@ -1,3 +1,4 @@
+import "obsidian";
 import { CLICK_SLOP, MARK, MAX_INLINE_VH, MAX_SCALE, MIN_SCALE, ZOOM_STEP } from "./constants";
 import {
   clamp,
@@ -14,16 +15,22 @@ export interface CanvasOptions {
   onClose?: (() => void) | null;
 }
 
+function resetSvgInlineLayout(svg: SVGSVGElement): void {
+  svg.setCssStyles({
+    width: "",
+    height: "",
+    maxWidth: "",
+    display: "",
+    margin: "",
+  });
+}
+
 export function unwrapHost(host: HTMLElement): void {
   const viewport = host.querySelector(":scope > .lmm-viewport");
   const svg = host.querySelector(".lmm-stage svg") || host.querySelector(":scope > svg");
   host.querySelector(":scope > .lmm-bar")?.remove();
-  if (svg instanceof SVGSVGElement) {
-    svg.style.width = "";
-    svg.style.height = "";
-    svg.style.maxWidth = "";
-    svg.style.display = "";
-    svg.style.margin = "";
+  if (svg?.instanceOf(SVGSVGElement)) {
+    resetSvgInlineLayout(svg);
     svg.removeAttribute(MARK);
     if (svg.parentElement !== host) host.insertBefore(svg, viewport);
   }
@@ -95,12 +102,16 @@ export class MermaidCanvas {
     const stage = viewport?.querySelector(":scope > .lmm-stage");
     const svg = stage?.querySelector(":scope > svg");
     const toolbar = host.querySelector(":scope > .lmm-bar");
-    const buttons = toolbar ? Array.from(toolbar.querySelectorAll(":scope .lmm-flair")) : [];
+    const buttons = toolbar
+      ? Array.from(toolbar.querySelectorAll(":scope .lmm-flair")).flatMap((node) =>
+          node.instanceOf(HTMLButtonElement) ? [node] : [],
+        )
+      : [];
     if (
-      !(viewport instanceof HTMLDivElement) ||
-      !(stage instanceof HTMLDivElement) ||
-      !(svg instanceof SVGSVGElement) ||
-      !(toolbar instanceof HTMLDivElement) ||
+      !viewport?.instanceOf(HTMLDivElement) ||
+      !stage?.instanceOf(HTMLDivElement) ||
+      !svg?.instanceOf(SVGSVGElement) ||
+      !toolbar?.instanceOf(HTMLDivElement) ||
       buttons.length < 6
     ) {
       return null;
@@ -117,19 +128,23 @@ export class MermaidCanvas {
     canvas.drag = null;
     canvas.moved = false;
     canvas.destroyed = false;
-    canvas.overlay = host.closest(".lmm-fs") as HTMLDivElement | null;
+    const overlay = host.closest(".lmm-fs");
+    const child = host.closest(".lmm-fs-doc");
+    canvas.overlay = overlay?.instanceOf(HTMLDivElement) ? overlay : null;
     canvas.host = host;
-    canvas.child = host.closest(".lmm-fs-doc") as HTMLDivElement | null;
+    canvas.child = child?.instanceOf(HTMLDivElement) ? child : null;
     canvas.lastWidth = 0;
     canvas.stage = stage;
     canvas.viewport = viewport;
     canvas.toolbar = toolbar;
-    canvas.btnOut = buttons[0] as HTMLButtonElement;
-    canvas.gauge = buttons[1] as HTMLButtonElement;
-    canvas.btnIn = buttons[2] as HTMLButtonElement;
-    canvas.btnFit = buttons[3] as HTMLButtonElement;
-    canvas.btnReset = buttons[4] as HTMLButtonElement;
-    canvas.btnFull = buttons[5] as HTMLButtonElement;
+    const [btnOut, gauge, btnIn, btnFit, btnReset, btnFull] = buttons;
+    if (!btnOut || !gauge || !btnIn || !btnFit || !btnReset || !btnFull) return null;
+    canvas.btnOut = btnOut;
+    canvas.gauge = gauge;
+    canvas.btnIn = btnIn;
+    canvas.btnFit = btnFit;
+    canvas.btnReset = btnReset;
+    canvas.btnFull = btnFull;
     canvas.childFs = null;
     canvas.ro = null;
     canvas.animTimer = 0;
@@ -142,7 +157,8 @@ export class MermaidCanvas {
 
   rebindBar(): void {
     const replace = (old: HTMLButtonElement, action: () => void) => {
-      const next = old.cloneNode(true) as HTMLButtonElement;
+      const next = old.cloneNode(true);
+      if (!next.instanceOf(HTMLButtonElement)) return old;
       old.replaceWith(next);
       next.addEventListener("click", (event) => {
         event.preventDefault();
@@ -164,11 +180,11 @@ export class MermaidCanvas {
 
   applyNaturalSize(): void {
     this.nat = measureSvg(this.svg) || this.nat;
-    this.svg.style.width = `${this.nat.w}px`;
-    this.svg.style.height = `${this.nat.h}px`;
-    this.svg.style.maxWidth = "none";
-    this.svg.style.display = "block";
-    this.svg.style.margin = "0";
+    this.svg.setCssStyles({
+      width: `${this.nat.w}px`,
+      height: `${this.nat.h}px`,
+      maxWidth: "none",
+    });
   }
 
   build(): void {
@@ -200,7 +216,7 @@ export class MermaidCanvas {
       rootDoc().body.appendChild(this.overlay);
     } else {
       const host = this.svg.closest(".mermaid") || parent;
-      if (!(host instanceof HTMLElement)) throw new Error("Lumen Stage: mermaid host not found");
+      if (!host?.instanceOf(HTMLElement)) throw new Error("Lumen Stage: mermaid host not found");
       this.host = host;
       this.host.classList.add("lmm-host");
       this.host.appendChild(this.viewport);
@@ -403,7 +419,7 @@ export class MermaidCanvas {
   setInlineHeight(scale: number): void {
     if (this.fullscreen) return;
     const height = Math.max(48, Math.min(Math.ceil(this.nat.h * scale), this.maxInlineHeight()));
-    this.viewport.style.height = `${height}px`;
+    this.viewport.setCssStyles({ height: `${height}px` });
   }
 
   reset(animate: boolean): void {
@@ -476,7 +492,11 @@ export class MermaidCanvas {
         this.stage.classList.remove("is-animating");
       }, 200);
     }
-    this.stage.style.transform = `translate(${this.tx}px, ${this.ty}px) scale(${this.scale})`;
+    this.stage.setCssProps({
+      "--tx": `${this.tx}px`,
+      "--ty": `${this.ty}px`,
+      "--scale": String(this.scale),
+    });
     this.gauge.textContent = `${Math.round(this.scale * 100)}%`;
     this.btnOut.disabled = this.scale <= MIN_SCALE + 1e-4;
     this.btnIn.disabled = this.scale >= MAX_SCALE - 1e-4;
@@ -484,10 +504,9 @@ export class MermaidCanvas {
 
   openFullscreen(): void {
     if (this.childFs) return;
-    const clone = this.svg.cloneNode(true) as SVGSVGElement;
-    clone.style.width = "";
-    clone.style.height = "";
-    clone.style.maxWidth = "";
+    const clone = this.svg.cloneNode(true);
+    if (!clone.instanceOf(SVGSVGElement)) return;
+    resetSvgInlineLayout(clone);
     this.childFs = new MermaidCanvas(clone, {
       fullscreen: true,
       onClose: () => {

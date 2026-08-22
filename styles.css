@@ -131,6 +131,7 @@
   left: 0;
   margin: 0;
   transform-origin: 0 0;
+  transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--scale, 1));
   will-change: transform;
 }
 
@@ -141,6 +142,7 @@
 .lmm-stage svg {
   display: block;
   margin: 0;
+  max-width: none;
 }
 
 .lmm-fs {

@@ -29,7 +29,7 @@ export default class LumenStagePlugin extends Plugin {
     this.observer = new MutationObserver((records) => {
       for (const record of records) {
         for (const node of Array.from(record.addedNodes)) {
-          if (!(node instanceof HTMLElement) && !(node instanceof SVGElement)) continue;
+          if (!node.instanceOf(HTMLElement) && !node.instanceOf(SVGElement)) continue;
           if (node.closest?.(".lmm-viewport, .lmm-fs, .lmm-bar")) continue;
           this.queueScan();
           return;
@@ -74,14 +74,14 @@ export default class LumenStagePlugin extends Plugin {
       delete win[TEARDOWN_KEY];
       rootDoc().querySelectorAll(".lmm-fs").forEach((node) => node.remove());
       rootDoc().querySelectorAll(".mermaid.lmm-host").forEach((node) => {
-        if (node instanceof HTMLElement) unwrapHost(node);
+        if (node.instanceOf(HTMLElement)) unwrapHost(node);
       });
     }, 80);
   }
 
   adoptExisting(): void {
     rootDoc().querySelectorAll(".mermaid.lmm-host").forEach((node) => {
-      if (!(node instanceof HTMLElement)) return;
+      if (!node.instanceOf(HTMLElement)) return;
       if ([...this.views].some((view) => view.host === node)) return;
       const adopted = MermaidCanvas.adopt(node);
       if (adopted) this.views.add(adopted);
@@ -108,7 +108,7 @@ export default class LumenStagePlugin extends Plugin {
   }
 
   process(node: Element): void {
-    if (!(node instanceof SVGSVGElement)) return;
+    if (!node.instanceOf(SVGSVGElement)) return;
     if (node.closest(".lmm-viewport") || node.closest(".lmm-fs")) return;
     if (node.hasAttribute(MARK)) {
       if (node.closest(".lmm-host")) return;

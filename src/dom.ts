@@ -1,3 +1,5 @@
+import "obsidian";
+
 export function rootDoc(): Document {
   return typeof activeDocument !== "undefined" ? activeDocument : document;
 }
@@ -53,7 +55,7 @@ export function measureSvg(svg: SVGSVGElement): Size | null {
 }
 
 export function isInteractiveTarget(target: EventTarget | null): boolean {
-  return !!(
-    target instanceof Element && target.closest("a, button, input, textarea, select, .lmm-bar")
-  );
+  if (!target || !("instanceOf" in target)) return false;
+  const node = target as Node;
+  return node.instanceOf(Element) && !!node.closest("a, button, input, textarea, select, .lmm-bar");
 }
