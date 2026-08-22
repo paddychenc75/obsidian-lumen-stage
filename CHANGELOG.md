@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2
+
+Remaining community CSS lint.
+
+- Drop `:has()`; Live Preview embed padding is cleared by toggling `.lmm-embed` on the parent from TypeScript
+- Drop print `!important`; viewport height now uses `--lmm-vh` so print can override without inline height
+
 ## 1.0.1
 
 Community review fixes. No interaction changes.

@@ -37,7 +37,7 @@
  * shell around the stage. Lumen Glass also skins this; the rule lives
  * here so other themes get the same structure.
  */
-.markdown-source-view.mod-cm6 .cm-embed-block:has(> .mermaid.lmm-host) {
+.markdown-source-view.mod-cm6 .cm-embed-block.lmm-embed {
   padding: 0;
   background: transparent;
   box-shadow: none;
@@ -116,6 +116,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
+  height: var(--lmm-vh, auto);
   cursor: grab;
   touch-action: none;
   outline: none;
@@ -195,20 +196,20 @@
 
 @media print {
   .lmm-bar {
-    display: none !important;
+    display: none;
   }
 
   .lmm-viewport {
     overflow: visible;
-    height: auto !important;
+    height: auto;
   }
 
   .lmm-stage {
     position: static;
-    transform: none !important;
+    transform: none;
   }
 
   .lmm-fs {
-    display: none !important;
+    display: none;
   }
 }

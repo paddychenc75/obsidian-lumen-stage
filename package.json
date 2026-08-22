@@ -1,6 +1,6 @@
 {
   "name": "obsidian-lumen-stage",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Lumen Stage — pan, zoom, and fullscreen for Obsidian Mermaid diagrams",
   "main": "main.js",

@@ -25,7 +25,14 @@ function resetSvgInlineLayout(svg: SVGSVGElement): void {
   });
 }
 
+function syncEmbedParent(host: HTMLElement, on: boolean): void {
+  const embed = host.parentElement;
+  if (!embed?.instanceOf(HTMLElement) || !embed.hasClass("cm-embed-block")) return;
+  embed.toggleClass("lmm-embed", on);
+}
+
 export function unwrapHost(host: HTMLElement): void {
+  syncEmbedParent(host, false);
   const viewport = host.querySelector(":scope > .lmm-viewport");
   const svg = host.querySelector(".lmm-stage svg") || host.querySelector(":scope > svg");
   host.querySelector(":scope > .lmm-bar")?.remove();
@@ -151,6 +158,7 @@ export class MermaidCanvas {
     canvas.rebindBar();
     canvas.attach();
     canvas.scheduleInit();
+    syncEmbedParent(host, true);
     svg.setAttribute(MARK, "1");
     return canvas;
   }
@@ -220,6 +228,7 @@ export class MermaidCanvas {
       this.host = host;
       this.host.classList.add("lmm-host");
       this.host.appendChild(this.viewport);
+      syncEmbedParent(host, true);
     }
 
     this.buildBar();
@@ -419,7 +428,8 @@ export class MermaidCanvas {
   setInlineHeight(scale: number): void {
     if (this.fullscreen) return;
     const height = Math.max(48, Math.min(Math.ceil(this.nat.h * scale), this.maxInlineHeight()));
-    this.viewport.setCssStyles({ height: `${height}px` });
+    this.viewport.setCssStyles({ height: "" });
+    this.viewport.setCssProps({ "--lmm-vh": `${height}px` });
   }
 
   reset(animate: boolean): void {
