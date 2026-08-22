@@ -1,0 +1,13 @@
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+node_modules/
+npm-debug.log*
+
+# Built by `npm run build`. Keep it on disk for local Obsidian installs.
+# Do not treat it as source.
+*.map
+
+data.json

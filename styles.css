@@ -1,0 +1,212 @@
+/*
+ * Lumen Stage — structure only.
+ * Lumen Glass optionally skins these .lmm-* classes. Other themes
+ * keep this fallback: a silent header band over a flush figure, no grid,
+ * no floating instrument chrome.
+ *
+ * Tokens are Obsidian native variables only. Do not introduce --lg-*
+ * here without a fallback; the theme owns those names.
+ */
+
+.mermaid.lmm-host {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin-inline: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  background: var(--background-primary);
+}
+
+/*
+ * Beat core Live Preview:
+ * .markdown-source-view.mod-cm6 .cm-embed-block > .mermaid { overflow-x: auto }
+ * A nested scroller fights the plugin viewport and shows a second gutter.
+ */
+.markdown-source-view.mod-cm6 .cm-embed-block > .mermaid.lmm-host {
+  overflow: hidden;
+}
+
+/*
+ * Strip the default embed pad so Live Preview does not grow a second
+ * shell around the stage. Lumen Glass also skins this; the rule lives
+ * here so other themes get the same structure.
+ */
+.markdown-source-view.mod-cm6 .cm-embed-block:has(> .mermaid.lmm-host) {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.lmm-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 36px;
+  padding: 6px 8px 6px 16px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.lmm-kind {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 20px;
+  user-select: none;
+}
+
+.lmm-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.lmm-flair {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 20px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.lmm-flair:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.lmm-flair:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+.lmm-flair:disabled {
+  opacity: 0.38;
+  cursor: default;
+  background: transparent;
+}
+
+.lmm-viewport {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 48px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  outline: none;
+}
+
+.lmm-viewport.is-dragging {
+  cursor: grabbing;
+}
+
+.lmm-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.lmm-stage.is-animating {
+  transition: transform 0.18s ease;
+}
+
+.lmm-stage svg {
+  display: block;
+  margin: 0;
+}
+
+.lmm-fs {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-modal, 100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 32px;
+  background: rgba(0, 0, 0, 0.46);
+}
+
+.lmm-fs-doc {
+  display: flex;
+  width: min(72rem, 100%);
+  height: min(100%, calc(100vh - 64px));
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.lmm-fs-doc > .mermaid.lmm-host {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+.lmm-fs .lmm-viewport {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+@media (pointer: coarse) {
+  .lmm-flair {
+    min-height: 36px;
+    padding-inline: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lmm-stage.is-animating,
+  .lmm-flair {
+    transition: none;
+  }
+}
+
+@media print {
+  .lmm-bar {
+    display: none !important;
+  }
+
+  .lmm-viewport {
+    overflow: visible;
+    height: auto !important;
+  }
+
+  .lmm-stage {
+    position: static;
+    transform: none !important;
+  }
+
+  .lmm-fs {
+    display: none !important;
+  }
+}
