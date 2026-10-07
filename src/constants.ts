@@ -4,3 +4,6 @@ export const ZOOM_STEP = 1.2;
 export const CLICK_SLOP = 6;
 export const MAX_INLINE_VH = 0.72;
 export const MARK = "data-lmm";
+export const KEY_PAN_STEP = 60;
+export const RETRY_DELAYS = [120, 250, 500, 1000, 2000];
+export const FS_FIT_PADDING = 24;

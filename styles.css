@@ -1,11 +1,15 @@
 /*
- * Lumen Stage — structure only.
+ * Lumen Stage — structure and a quiet fallback skin.
  * Lumen Glass optionally skins these .lmm-* classes. Other themes
  * keep this fallback: a silent header band over a flush figure, no grid,
  * no floating instrument chrome.
  *
  * Tokens are Obsidian native variables only. Do not introduce --lg-*
  * here without a fallback; the theme owns those names.
+ *
+ * Specificity budget: chrome rules stay at two classes or fewer so a
+ * theme can restyle them with `.lmm-host .lmm-*`. Theme CSS loads after
+ * plugin CSS, so a tie goes to the theme.
  */
 
 .mermaid.lmm-host {
@@ -19,7 +23,7 @@
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 10px;
+  border-radius: var(--radius-m, 8px);
   background: var(--background-primary);
 }
 
@@ -43,68 +47,127 @@
   box-shadow: none;
 }
 
+/* Header band */
+
 .lmm-bar {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   box-sizing: border-box;
   min-height: 36px;
-  padding: 6px 8px 6px 16px;
+  padding: 4px 6px 4px 14px;
   border-bottom: 1px solid var(--background-modifier-border);
   background: var(--background-secondary);
+  cursor: default;
+  user-select: none;
 }
 
 .lmm-kind {
+  flex: none;
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   font-weight: 500;
   letter-spacing: 0.01em;
   line-height: 20px;
-  user-select: none;
+}
+
+.lmm-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  line-height: 20px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lmm-actions {
   display: flex;
+  flex: none;
   align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 2px;
+  margin-left: auto;
 }
 
-.lmm-flair {
+.lmm-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.lmm-group + .lmm-group {
+  margin-left: 5px;
+  padding-left: 5px;
+  border-left: 1px solid var(--background-modifier-border);
+}
+
+/*
+ * The buttons carry Obsidian's `clickable-icon`, which keeps the generic
+ * bordered <button> rules off them. Everything below is the flat toolbar
+ * look, restated so it does not depend on a theme's icon-button skin.
+ */
+.lmm-bar .lmm-flair {
+  --icon-size: 15px;
+  --icon-stroke: 2px;
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  min-height: 24px;
-  padding: 2px 8px;
+  box-sizing: border-box;
+  width: auto;
+  height: auto;
+  min-width: 26px;
+  min-height: 26px;
+  margin: 0;
+  padding: 2px 6px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-s, 4px);
   background: transparent;
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
   line-height: 20px;
+  opacity: 1;
   cursor: pointer;
   box-shadow: none;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
 }
 
-.lmm-flair:hover {
+.lmm-bar .lmm-flair:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.lmm-flair:focus-visible {
-  outline: 2px solid var(--interactive-accent);
-  outline-offset: 2px;
+.lmm-bar .lmm-flair:active {
+  background: var(--background-modifier-active-hover, var(--background-modifier-hover));
+  color: var(--text-normal);
 }
 
-.lmm-flair:disabled {
-  opacity: 0.38;
-  cursor: default;
-  background: transparent;
+.lmm-bar .lmm-flair:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
 }
+
+.lmm-bar .lmm-flair:disabled {
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* The readout keeps its width while the number changes. */
+.lmm-bar .lmm-gauge {
+  min-width: 46px;
+}
+
+/* Stage */
 
 .lmm-viewport {
   position: relative;
@@ -120,6 +183,11 @@
   cursor: grab;
   touch-action: none;
   outline: none;
+}
+
+.lmm-viewport:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
 }
 
 .lmm-viewport.is-dragging {
@@ -146,6 +214,8 @@
   max-width: none;
 }
 
+/* Fullscreen overlay */
+
 .lmm-fs {
   position: fixed;
   inset: 0;
@@ -156,22 +226,25 @@
   box-sizing: border-box;
   padding: 32px;
   background: rgba(0, 0, 0, 0.46);
+  animation: lmm-fade 0.14s ease-out;
 }
 
 .lmm-fs-doc {
   display: flex;
-  width: min(72rem, 100%);
+  width: min(90rem, 100%);
   height: min(100%, calc(100vh - 64px));
   min-width: 0;
   min-height: 0;
   margin: 0;
   padding: 0;
+  animation: lmm-rise 0.18s ease-out;
 }
 
 .lmm-fs-doc > .mermaid.lmm-host {
   width: 100%;
   height: 100%;
   margin: 0;
+  box-shadow: var(--shadow-l);
 }
 
 .lmm-fs .lmm-viewport {
@@ -180,16 +253,62 @@
   min-height: 0;
 }
 
+@keyframes lmm-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes lmm-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+}
+
+@media (max-width: 700px) {
+  .lmm-hint {
+    display: none;
+  }
+
+  .lmm-fs {
+    padding: 12px;
+  }
+
+  .lmm-fs-doc {
+    height: min(100%, calc(100vh - 24px));
+  }
+}
+
 @media (pointer: coarse) {
-  .lmm-flair {
+  .lmm-bar .lmm-flair {
+    min-width: 36px;
     min-height: 36px;
-    padding-inline: 10px;
+  }
+
+  /*
+   * A diagram that fits its viewport vertically must not trap the page
+   * scroll under a finger. Once it overflows, or in the overlay, the
+   * stage takes every gesture.
+   */
+  .lmm-viewport {
+    touch-action: pan-y;
+  }
+
+  .lmm-viewport.is-pannable-y,
+  .lmm-fs .lmm-viewport {
+    touch-action: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .lmm-fs,
+  .lmm-fs-doc {
+    animation: none;
+  }
+
   .lmm-stage.is-animating,
-  .lmm-flair {
+  .lmm-bar .lmm-flair {
     transition: none;
   }
 }

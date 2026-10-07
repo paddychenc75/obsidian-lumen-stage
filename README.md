@@ -8,17 +8,29 @@ The theme works without this plugin. This plugin works without the theme.
 
 ## Interaction
 
+Inline, in the note:
+
 - Drag the canvas to pan
-- `Ctrl` / `Cmd` + wheel zooms toward the pointer
+- `Ctrl` / `Cmd` + wheel, or a trackpad pinch, zooms toward the pointer
 - Ordinary wheel movement scrolls the note
-- Click the diagram, or **Full**, for a lightweight overlay
-- Header flairs: zoom, **Fit**, **Reset**, **Full**
-- `Esc` or the dimmed backdrop closes the overlay
-- Command: **Open first Mermaid diagram fullscreen**
+- Click the diagram, or the fullscreen button, for a lightweight overlay
+- Header buttons: zoom out, zoom readout (click for 100%), zoom in, fit, reset, fullscreen
+- With the stage focused: `+` / `-` zoom, `0` resets, arrow keys pan, `F` opens fullscreen
 
-The chrome is a silent 36px header band with text flairs. There is no drafting grid and no floating instrument toolbar.
+In the overlay:
 
-Internal class names stay on the `lmm-*` prefix so existing Lumen Glass scoped styles keep matching.
+- Drag, wheel, or two-finger scroll pans; `Ctrl` / `Cmd` + wheel or pinch zooms
+- `Esc`, the close button, or the dimmed backdrop closes it
+
+On touch screens, two fingers pinch-zoom and pan. A diagram that fits its stage vertically lets the page scroll through it.
+
+Reset shows the diagram at its natural size, shrunk to the column when it is wider. Fit fills the canvas.
+
+Command: **Open first Mermaid diagram fullscreen** opens the diagram on screen in the active note.
+
+The chrome is a silent 36px header band with icon buttons. There is no drafting grid and no floating instrument toolbar.
+
+Internal class names stay on the `lmm-*` prefix so existing Lumen Glass scoped styles keep matching. Chrome rules use two classes at most, so a theme can restyle them with `.lmm-host .lmm-*`.
 
 ## Install
 

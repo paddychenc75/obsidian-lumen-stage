@@ -1,14 +1,15 @@
-import "obsidian";
-import { CLICK_SLOP, MARK, MAX_INLINE_VH, MAX_SCALE, MIN_SCALE, ZOOM_STEP } from "./constants";
+import { Platform, setIcon } from "obsidian";
 import {
-  clamp,
-  el,
-  isInteractiveTarget,
-  measureSvg,
-  prefersReducedMotion,
-  rootDoc,
-  rootWin,
-} from "./dom";
+  CLICK_SLOP,
+  FS_FIT_PADDING,
+  KEY_PAN_STEP,
+  MARK,
+  MAX_INLINE_VH,
+  MAX_SCALE,
+  MIN_SCALE,
+  ZOOM_STEP,
+} from "./constants";
+import { clamp, el, isInteractiveTarget, measureSvg, prefersReducedMotion } from "./dom";
 
 export interface CanvasOptions {
   fullscreen?: boolean;
@@ -53,6 +54,18 @@ interface DragState {
   ty: number;
 }
 
+interface PinchState {
+  dist: number;
+  scale: number;
+  cx: number;
+  cy: number;
+}
+
+interface Point {
+  x: number;
+  y: number;
+}
+
 interface PanBounds {
   txMin: number;
   txMax: number;
@@ -62,6 +75,8 @@ interface PanBounds {
 
 export class MermaidCanvas {
   svg: SVGSVGElement;
+  doc: Document;
+  win: Window;
   fullscreen: boolean;
   onClose: (() => void) | null;
   scale = 1;
@@ -69,12 +84,16 @@ export class MermaidCanvas {
   ty = 0;
   nat = { w: 320, h: 180 };
   drag: DragState | null = null;
+  pinch: PinchState | null = null;
+  pointers = new Map<number, Point>();
   moved = false;
+  touched = false;
   destroyed = false;
   overlay: HTMLDivElement | null = null;
   host: HTMLElement | null = null;
   child: HTMLDivElement | null = null;
   lastWidth = 0;
+  inlineHeight = 0;
   stage: HTMLDivElement;
   viewport: HTMLDivElement;
   toolbar: HTMLDivElement | null = null;
@@ -97,6 +116,8 @@ export class MermaidCanvas {
 
   constructor(svg: SVGSVGElement, options: CanvasOptions = {}) {
     this.svg = svg;
+    this.doc = svg.ownerDocument;
+    this.win = this.doc.defaultView ?? window;
     this.fullscreen = !!options.fullscreen;
     this.onClose = options.onClose ?? null;
     this.stage = el("div", "lmm-stage");
@@ -126,6 +147,8 @@ export class MermaidCanvas {
 
     const canvas = Object.create(MermaidCanvas.prototype) as MermaidCanvas;
     canvas.svg = svg;
+    canvas.doc = svg.ownerDocument;
+    canvas.win = canvas.doc.defaultView ?? window;
     canvas.fullscreen = !!host.closest(".lmm-fs");
     canvas.onClose = null;
     canvas.scale = 1;
@@ -133,7 +156,10 @@ export class MermaidCanvas {
     canvas.ty = 0;
     canvas.nat = { w: 320, h: 180 };
     canvas.drag = null;
+    canvas.pinch = null;
+    canvas.pointers = new Map();
     canvas.moved = false;
+    canvas.touched = false;
     canvas.destroyed = false;
     const overlay = host.closest(".lmm-fs");
     const child = host.closest(".lmm-fs-doc");
@@ -141,6 +167,7 @@ export class MermaidCanvas {
     canvas.host = host;
     canvas.child = child?.instanceOf(HTMLDivElement) ? child : null;
     canvas.lastWidth = 0;
+    canvas.inlineHeight = 0;
     canvas.stage = stage;
     canvas.viewport = viewport;
     canvas.toolbar = toolbar;
@@ -177,7 +204,7 @@ export class MermaidCanvas {
     };
 
     this.btnOut = replace(this.btnOut, () => this.zoomBy(1 / ZOOM_STEP));
-    this.gauge = replace(this.gauge, () => this.reset(true));
+    this.gauge = replace(this.gauge, () => this.actualSize());
     this.btnIn = replace(this.btnIn, () => this.zoomBy(ZOOM_STEP));
     this.btnFit = replace(this.btnFit, () => this.fit(true));
     this.btnReset = replace(this.btnReset, () => this.reset(true));
@@ -203,7 +230,9 @@ export class MermaidCanvas {
     this.viewport.setAttribute("role", "group");
     this.viewport.setAttribute(
       "aria-label",
-      "Mermaid diagram — drag to pan, Ctrl or Cmd and wheel to zoom",
+      this.fullscreen
+        ? "Mermaid diagram — drag or scroll to pan, Ctrl or Cmd and wheel to zoom"
+        : "Mermaid diagram — drag to pan, Ctrl or Cmd and wheel to zoom",
     );
     this.stage.appendChild(this.svg);
     this.viewport.appendChild(this.stage);
@@ -221,7 +250,7 @@ export class MermaidCanvas {
       this.overlay.addEventListener("pointerdown", (event) => {
         if (event.target === this.overlay) this.close();
       });
-      rootDoc().body.appendChild(this.overlay);
+      this.doc.body.appendChild(this.overlay);
     } else {
       const host = this.svg.closest(".mermaid") || parent;
       if (!host?.instanceOf(HTMLElement)) throw new Error("Lumen Stage: mermaid host not found");
@@ -234,6 +263,8 @@ export class MermaidCanvas {
     this.buildBar();
     this.attach();
     this.scheduleInit();
+    // Take focus off the editor so typing cannot edit the note behind the overlay.
+    if (this.fullscreen) this.viewport.focus({ preventScroll: true });
   }
 
   buildBar(): void {
@@ -242,16 +273,20 @@ export class MermaidCanvas {
 
     const bar = el("div", "lmm-bar");
     bar.setAttribute("role", "toolbar");
+    bar.setAttribute("aria-label", "Diagram controls");
 
     const kind = el("span", "lmm-kind");
     kind.textContent = "Mermaid";
 
-    const flair = (label: string, title: string, action: () => void) => {
-      const node = el("button", "lmm-flair");
+    // `clickable-icon` opts the buttons out of the generic bordered <button> chrome
+    // that Obsidian and most themes apply, so they read as toolbar icons everywhere.
+    const flair = (icon: string | null, label: string, title: string, action: () => void) => {
+      const node = el("button", "clickable-icon lmm-flair");
       node.type = "button";
-      node.textContent = label;
+      if (icon) setIcon(node, icon);
+      if (!node.firstChild) node.textContent = label;
       node.setAttribute("aria-label", title);
-      node.title = title;
+      node.setAttribute("data-tooltip-position", this.fullscreen ? "bottom" : "top");
       node.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -260,58 +295,121 @@ export class MermaidCanvas {
       return node;
     };
 
-    this.btnOut = flair("−", "Zoom out", () => this.zoomBy(1 / ZOOM_STEP));
-    this.gauge = flair("100%", "Reset view", () => this.reset(true));
-    this.btnIn = flair("+", "Zoom in", () => this.zoomBy(ZOOM_STEP));
-    this.btnFit = flair("Fit", "Fit to canvas", () => this.fit(true));
-    this.btnReset = flair("Reset", "Reset", () => this.reset(true));
+    const group = (...nodes: HTMLElement[]) => {
+      const node = el("div", "lmm-group");
+      for (const child of nodes) node.appendChild(child);
+      return node;
+    };
+
+    this.btnOut = flair("minus", "−", "Zoom out", () => this.zoomBy(1 / ZOOM_STEP));
+    this.gauge = flair(null, "100%", "Actual size", () => this.actualSize());
+    this.gauge.addClass("lmm-gauge");
+    this.btnIn = flair("plus", "+", "Zoom in", () => this.zoomBy(ZOOM_STEP));
+    this.btnFit = flair("scan", "Fit", "Fit to canvas", () => this.fit(true));
+    this.btnReset = flair("rotate-ccw", "Reset", "Reset view", () => this.reset(true));
     this.btnFull = this.fullscreen
-      ? flair("Close", "Close", () => this.close())
-      : flair("Full", "Open fullscreen", () => this.openFullscreen());
+      ? flair("x", "Close", "Close (Esc)", () => this.close())
+      : flair("maximize-2", "Full", "Open fullscreen", () => this.openFullscreen());
 
     const actions = el("div", "lmm-actions");
-    actions.appendChild(this.btnOut);
-    actions.appendChild(this.gauge);
-    actions.appendChild(this.btnIn);
-    actions.appendChild(this.btnFit);
-    actions.appendChild(this.btnReset);
-    actions.appendChild(this.btnFull);
+    actions.appendChild(group(this.btnOut, this.gauge, this.btnIn));
+    actions.appendChild(group(this.btnFit, this.btnReset));
+    actions.appendChild(group(this.btnFull));
 
     bar.appendChild(kind);
+    if (this.fullscreen) {
+      const hint = el("span", "lmm-hint");
+      const mod = Platform.isMacOS ? "⌘" : "Ctrl";
+      hint.textContent = `Drag or scroll to pan · ${mod} + scroll to zoom · Esc to close`;
+      bar.appendChild(hint);
+    }
     bar.appendChild(actions);
     this.toolbar = bar;
     host.insertBefore(bar, this.viewport);
   }
 
+  startDrag(id: number, x: number, y: number): void {
+    this.drag = { id, sx: x, sy: y, tx: this.tx, ty: this.ty };
+    this.viewport.classList.add("is-dragging");
+  }
+
+  startPinch(): void {
+    const [a, b] = [...this.pointers.values()];
+    if (!a || !b) return;
+    this.drag = null;
+    this.moved = true;
+    this.pinch = {
+      dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+      scale: this.scale,
+      cx: (a.x + b.x) / 2,
+      cy: (a.y + b.y) / 2,
+    };
+  }
+
   attach(): void {
     this.onWheel = (event) => {
-      if (!(event.ctrlKey || event.metaKey)) return;
+      const zoom = event.ctrlKey || event.metaKey;
+      // Inline, an ordinary wheel belongs to the note. Fullscreen has nothing to scroll, so it pans.
+      if (!zoom && !this.fullscreen) return;
       event.preventDefault();
+      const unit = event.deltaMode === 1 ? 16 : 1;
+      if (!zoom) {
+        this.touched = true;
+        this.panBy(-event.deltaX * unit, -event.deltaY * unit);
+        return;
+      }
       const rect = this.viewport.getBoundingClientRect();
-      const factor = Math.pow(1.0017, -event.deltaY);
+      // Trackpad pinch arrives as ctrl+wheel with small deltas and needs a steeper curve than a wheel notch.
+      const pinch = event.ctrlKey && event.deltaMode === 0 && Math.abs(event.deltaY) < 40;
+      const factor = Math.exp(-event.deltaY * unit * (pinch ? 0.01 : 0.0017));
       this.zoomTo(this.scale * factor, event.clientX - rect.left, event.clientY - rect.top, false);
     };
 
     this.onPointerDown = (event) => {
       if (event.button !== 0) return;
       if (isInteractiveTarget(event.target)) return;
-      this.moved = false;
-      this.drag = {
-        id: event.pointerId,
-        sx: event.clientX,
-        sy: event.clientY,
-        tx: this.tx,
-        ty: this.ty,
-      };
-      this.viewport.classList.add("is-dragging");
+      this.touched = true;
+      this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       try {
         this.viewport.setPointerCapture(event.pointerId);
       } catch {
         /* capture is best-effort */
       }
+      if (this.pointers.size === 2) {
+        this.startPinch();
+        return;
+      }
+      if (this.pointers.size > 2) return;
+      this.moved = false;
+      this.startDrag(event.pointerId, event.clientX, event.clientY);
     };
 
     this.onPointerMove = (event) => {
+      const point = this.pointers.get(event.pointerId);
+      if (!point) return;
+      point.x = event.clientX;
+      point.y = event.clientY;
+
+      if (this.pinch) {
+        const [a, b] = [...this.pointers.values()];
+        if (!a || !b) return;
+        const rect = this.viewport.getBoundingClientRect();
+        const cx = (a.x + b.x) / 2;
+        const cy = (a.y + b.y) / 2;
+        this.tx += cx - this.pinch.cx;
+        this.ty += cy - this.pinch.cy;
+        this.pinch.cx = cx;
+        this.pinch.cy = cy;
+        const dist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+        this.zoomTo(
+          (this.pinch.scale * dist) / this.pinch.dist,
+          cx - rect.left,
+          cy - rect.top,
+          false,
+        );
+        return;
+      }
+
       if (!this.drag || event.pointerId !== this.drag.id) return;
       const dx = event.clientX - this.drag.sx;
       const dy = event.clientY - this.drag.sy;
@@ -323,49 +421,79 @@ export class MermaidCanvas {
     };
 
     this.onPointerUp = (event) => {
-      if (!this.drag || event.pointerId !== this.drag.id) return;
-      const wasClick = !this.moved;
-      this.viewport.classList.remove("is-dragging");
+      if (!this.pointers.delete(event.pointerId)) return;
       try {
-        this.viewport.releasePointerCapture(this.drag.id);
+        this.viewport.releasePointerCapture(event.pointerId);
       } catch {
         /* already released */
       }
+
+      if (this.pinch) {
+        if (this.pointers.size < 2) {
+          this.pinch = null;
+          const rest = [...this.pointers.entries()][0];
+          if (rest) this.startDrag(rest[0], rest[1].x, rest[1].y);
+        }
+        if (this.pointers.size === 0) this.viewport.classList.remove("is-dragging");
+        return;
+      }
+
+      if (!this.drag || event.pointerId !== this.drag.id) return;
+      // A cancelled gesture (the page took over the scroll) is never a click.
+      const wasClick = !this.moved && event.type === "pointerup";
+      this.viewport.classList.remove("is-dragging");
       this.drag = null;
       if (wasClick && !this.fullscreen && !isInteractiveTarget(event.target)) {
-        if (window.getSelection && String(window.getSelection())) return;
+        if (String(this.win.getSelection() ?? "")) return;
         this.openFullscreen();
       }
     };
 
     this.onKeyDown = (event) => {
-      if (this.fullscreen && event.key === "Escape") {
+      const handled = () => {
         event.preventDefault();
+        if (this.fullscreen) event.stopPropagation();
+      };
+      if (this.fullscreen && event.key === "Escape") {
+        handled();
         this.close();
         return;
       }
-      if (!this.fullscreen && rootDoc().activeElement !== this.viewport) return;
+      if (!this.fullscreen && this.doc.activeElement !== this.viewport) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
       switch (event.key) {
         case "+":
         case "=":
-          event.preventDefault();
+          handled();
           this.zoomBy(ZOOM_STEP);
           break;
         case "-":
         case "_":
-          event.preventDefault();
+          handled();
           this.zoomBy(1 / ZOOM_STEP);
           break;
         case "0":
-          event.preventDefault();
+          handled();
           this.reset(true);
           break;
         case "f":
         case "F":
           if (!this.fullscreen) {
-            event.preventDefault();
+            handled();
             this.openFullscreen();
           }
+          break;
+        case "ArrowLeft":
+          if (this.panBy(KEY_PAN_STEP, 0) || this.fullscreen) handled();
+          break;
+        case "ArrowRight":
+          if (this.panBy(-KEY_PAN_STEP, 0) || this.fullscreen) handled();
+          break;
+        case "ArrowUp":
+          if (this.panBy(0, KEY_PAN_STEP) || this.fullscreen) handled();
+          break;
+        case "ArrowDown":
+          if (this.panBy(0, -KEY_PAN_STEP) || this.fullscreen) handled();
           break;
         default:
           break;
@@ -387,8 +515,9 @@ export class MermaidCanvas {
     this.viewport.addEventListener("pointermove", this.onPointerMove);
     this.viewport.addEventListener("pointerup", this.onPointerUp);
     this.viewport.addEventListener("pointercancel", this.onPointerUp);
-    this.viewport.addEventListener("keydown", this.onKeyDown);
-    if (this.fullscreen) rootDoc().addEventListener("keydown", this.onKeyDown, true);
+    // Fullscreen listens on the document only, so a focused viewport does not handle a key twice.
+    if (this.fullscreen) this.doc.addEventListener("keydown", this.onKeyDown, true);
+    else this.viewport.addEventListener("keydown", this.onKeyDown);
     if (typeof ResizeObserver !== "undefined") {
       this.ro = new ResizeObserver(this.onResize);
       this.ro.observe(this.viewport);
@@ -396,8 +525,9 @@ export class MermaidCanvas {
   }
 
   scheduleInit(attempt = 0): void {
-    rootWin().requestAnimationFrame(() => {
-      if (this.destroyed) return;
+    this.win.requestAnimationFrame(() => {
+      // Once the reader has moved the diagram, settling must not snap it back.
+      if (this.destroyed || this.touched) return;
       this.applyNaturalSize();
       if (this.viewport.clientWidth > 0 && this.nat.w > 40) {
         if (this.fullscreen) this.fit(false);
@@ -406,8 +536,8 @@ export class MermaidCanvas {
       if (attempt < 30) this.scheduleInit(attempt + 1);
     });
     if (attempt === 0) {
-      rootWin().setTimeout(() => {
-        if (this.destroyed) return;
+      this.win.setTimeout(() => {
+        if (this.destroyed || this.touched) return;
         this.applyNaturalSize();
         if (this.fullscreen) this.fit(false);
         else this.reset(false);
@@ -416,23 +546,29 @@ export class MermaidCanvas {
   }
 
   maxInlineHeight(): number {
-    return Math.round(rootWin().innerHeight * MAX_INLINE_VH);
+    return Math.round(this.win.innerHeight * MAX_INLINE_VH);
   }
 
   widthScale(): number {
     const width = this.viewport.clientWidth;
     if (!width || !this.nat.w) return 1;
-    return clamp(width / this.nat.w, MIN_SCALE, MAX_SCALE);
+    // Shrink to the column, never blow a small diagram up past its natural size.
+    return clamp(Math.min(1, width / this.nat.w), MIN_SCALE, MAX_SCALE);
   }
 
-  setInlineHeight(scale: number): void {
+  /** `growOnly` keeps the note from jumping under the pointer while zooming out. */
+  setInlineHeight(scale: number, growOnly = false): void {
     if (this.fullscreen) return;
-    const height = Math.max(48, Math.min(Math.ceil(this.nat.h * scale), this.maxInlineHeight()));
+    const wanted = Math.max(48, Math.min(Math.ceil(this.nat.h * scale), this.maxInlineHeight()));
+    const height = growOnly ? Math.max(wanted, this.inlineHeight) : wanted;
+    if (height === this.inlineHeight) return;
+    this.inlineHeight = height;
     this.viewport.setCssStyles({ height: "" });
     this.viewport.setCssProps({ "--lmm-vh": `${height}px` });
   }
 
   reset(animate: boolean): void {
+    if (animate) this.touched = true;
     const scale = this.widthScale();
     this.scale = scale;
     this.tx = 0;
@@ -444,10 +580,17 @@ export class MermaidCanvas {
   }
 
   fit(animate: boolean): void {
+    if (animate) this.touched = true;
     const width = this.viewport.clientWidth;
     const height = this.viewport.clientHeight || this.maxInlineHeight();
     if (!width || !this.nat.w) return;
-    const scale = clamp(Math.min(width / this.nat.w, height / this.nat.h), MIN_SCALE, MAX_SCALE);
+    // Keep the overlay diagram off the frame; inline, the figure stays flush.
+    const pad = this.fullscreen ? Math.min(FS_FIT_PADDING, width / 8, height / 8) : 0;
+    const scale = clamp(
+      Math.min((width - pad * 2) / this.nat.w, (height - pad * 2) / this.nat.h),
+      MIN_SCALE,
+      MAX_SCALE,
+    );
     this.scale = scale;
     if (!this.fullscreen) this.setInlineHeight(scale);
     const usedW = this.nat.w * scale;
@@ -479,15 +622,33 @@ export class MermaidCanvas {
     this.ty = clamp(this.ty, bounds.tyMin, bounds.tyMax);
   }
 
+  /** Returns whether the diagram actually moved, so callers can let an unused key through. */
+  panBy(dx: number, dy: number): boolean {
+    const tx = this.tx;
+    const ty = this.ty;
+    this.tx += dx;
+    this.ty += dy;
+    this.clampPan();
+    if (this.tx === tx && this.ty === ty) return false;
+    this.touched = true;
+    this.render(false);
+    return true;
+  }
+
   zoomTo(next: number, originX: number, originY: number, animate: boolean): void {
+    this.touched = true;
     const scale = clamp(next, MIN_SCALE, MAX_SCALE);
     const ratio = scale / this.scale;
     this.tx = originX - (originX - this.tx) * ratio;
     this.ty = originY - (originY - this.ty) * ratio;
     this.scale = scale;
-    if (!this.fullscreen) this.setInlineHeight(scale);
+    if (!this.fullscreen) this.setInlineHeight(scale, true);
     this.clampPan();
     this.render(animate);
+  }
+
+  actualSize(): void {
+    this.zoomTo(1, this.viewport.clientWidth / 2, this.viewport.clientHeight / 2, true);
   }
 
   zoomBy(factor: number): void {
@@ -497,8 +658,8 @@ export class MermaidCanvas {
   render(animate: boolean): void {
     if (animate && !prefersReducedMotion()) {
       this.stage.classList.add("is-animating");
-      rootWin().clearTimeout(this.animTimer);
-      this.animTimer = rootWin().setTimeout(() => {
+      this.win.clearTimeout(this.animTimer);
+      this.animTimer = this.win.setTimeout(() => {
         this.stage.classList.remove("is-animating");
       }, 200);
     }
@@ -507,6 +668,11 @@ export class MermaidCanvas {
       "--ty": `${this.ty}px`,
       "--scale": String(this.scale),
     });
+    // Touch: a diagram that fits vertically lets the page scroll through it.
+    this.viewport.toggleClass(
+      "is-pannable-y",
+      this.nat.h * this.scale > this.viewport.clientHeight + 1,
+    );
     this.gauge.textContent = `${Math.round(this.scale * 100)}%`;
     this.btnOut.disabled = this.scale <= MIN_SCALE + 1e-4;
     this.btnIn.disabled = this.scale >= MAX_SCALE - 1e-4;
@@ -535,15 +701,18 @@ export class MermaidCanvas {
   detach(): void {
     if (this.destroyed) return;
     this.destroyed = true;
-    rootWin().clearTimeout(this.animTimer);
+    this.win.clearTimeout(this.animTimer);
     if (this.ro) this.ro.disconnect();
+    this.pointers.clear();
+    this.drag = null;
+    this.pinch = null;
     this.viewport.removeEventListener("wheel", this.onWheel);
     this.viewport.removeEventListener("pointerdown", this.onPointerDown);
     this.viewport.removeEventListener("pointermove", this.onPointerMove);
     this.viewport.removeEventListener("pointerup", this.onPointerUp);
     this.viewport.removeEventListener("pointercancel", this.onPointerUp);
-    this.viewport.removeEventListener("keydown", this.onKeyDown);
-    if (this.fullscreen) rootDoc().removeEventListener("keydown", this.onKeyDown, true);
+    if (this.fullscreen) this.doc.removeEventListener("keydown", this.onKeyDown, true);
+    else this.viewport.removeEventListener("keydown", this.onKeyDown);
     if (this.childFs) {
       this.childFs.destroy();
       this.childFs = null;

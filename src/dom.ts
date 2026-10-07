@@ -1,9 +1,5 @@
 import "obsidian";
 
-export function rootDoc(): Document {
-  return typeof activeDocument !== "undefined" ? activeDocument : document;
-}
-
 export function rootWin(): Window {
   return typeof activeWindow !== "undefined" ? activeWindow : window;
 }

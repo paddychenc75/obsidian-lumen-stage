@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.1.0
+
+Reliability, interaction, and a reworked toolbar.
+
+Fixed
+
+- Fullscreen could only be opened once: a rescan adopted the overlay as if it were a diagram in the note, which left the original diagram believing its overlay was still open
+- Diagrams that Obsidian re-rendered (theme or CSS change, Live Preview rebuild) left dead canvases and observers behind; they are now pruned on every scan
+- Obsidian's hidden measuring copy on `<body>` is no longer wrapped mid-render
+- A diagram that was not ready when the scan ran is retried with a short backoff, and any diagram the scan still missed is picked up when the pointer reaches it
+- A key press in fullscreen was handled twice when the stage had focus
+- Typing while the overlay was open edited the note behind it; the overlay now takes focus
+- A cancelled touch gesture was treated as a click and opened fullscreen
+- The settle pass after load no longer snaps the view back once you have moved it
+
+Changed
+
+- Toolbar buttons are grouped icon buttons using Obsidian's `clickable-icon`, so themes and the app no longer draw generic bordered buttons in the header band; the band drops back to its intended height
+- The zoom readout is a button that returns to actual size (100%)
+- Reset shrinks a wide diagram to the column but no longer enlarges a small one past its natural size; Fit still fills the canvas
+- Zooming inline grows the stage but does not shrink it, so the note does not jump under the pointer
+- Fullscreen: wheel and trackpad scroll pan, `Ctrl` / `Cmd` + wheel zooms, trackpad pinch zooms at a usable rate, Fit leaves a margin, and a hint line lists the gestures
+- The fullscreen command prefers the diagram on screen in the active note
+
+Added
+
+- Two-finger pinch zoom and pan on touch screens; a diagram that fits vertically lets the page scroll through it
+- Arrow keys pan the focused stage
+- Pop-out windows are observed and enhanced
+- Fullscreen entrance animation, disabled under reduced motion
+
 ## 1.0.2
 
 Remaining community CSS lint.
