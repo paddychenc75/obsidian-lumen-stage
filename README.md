@@ -1,5 +1,8 @@
 # Lumen Stage
 
+> [!IMPORTANT]
+> Lumen Stage is no longer developed. It continues as [Mermaid Kit](https://github.com/paddychenc75/obsidian-mermaid-kit), which keeps the same pan, zoom, and fullscreen stage and adds diagram templates. The two wrap the same diagrams, so disable Lumen Stage before enabling Mermaid Kit.
+
 An Obsidian plugin that turns rendered Mermaid diagrams into a small stage: pan, zoom, fit, reset, and a lightweight fullscreen overlay.
 
 It works with **any theme**. [Lumen Glass](https://github.com/paddychenc75/obsidian-lumen) is an optional skin, not a dependency. The theme only styles the `.lmm-*` classes this plugin creates. The plugin only uses Obsidian CSS tokens, so other themes keep a quiet header band over a flush figure.
